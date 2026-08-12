@@ -1,1 +1,345 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LoopTimer GPS</title>
+    <style>
+        :root {
+            --bg-main: #0b0d10;
+            --bg-card: #15181f;
+            --accent: #00ffcc;
+            --accent-glow: rgba(0, 255, 204, 0.3);
+            --text-main: #ffffff;
+            --text-muted: #8b95a5;
+            --danger: #ff4d4d;
+        }
 
+        body { 
+            background: var(--bg-main); 
+            color: var(--text-main); 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            text-align: center; 
+            padding: 0; 
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .app-header {
+            width: 100%;
+            background: rgba(21, 24, 31, 0.8);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            box-sizing: border-box;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .app-header h1 { font-size: 1.2rem; margin: 0; color: var(--accent); font-weight: 800; }
+        
+        .back-btn {
+            background: #232833;
+            color: var(--text-main);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            padding: 15px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #0f1115;
+            color: white;
+            font-size: 0.95rem;
+            box-sizing: border-box;
+            outline: none;
+            transition: border 0.2s;
+            margin-bottom: 10px;
+            text-align: right;
+        }
+        input[type="text"]:focus { border-color: var(--accent); }
+
+        button.action-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #00ffcc, #00b386);
+            color: #0b0d10;
+            font-size: 1.1rem;
+            font-weight: 800;
+            padding: 16px;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            box-shadow: 0 6px 20px var(--accent-glow);
+            margin-bottom: 10px;
+        }
+
+        button.set-point-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #0077ff, #0055bb);
+            color: white;
+            font-size: 1rem;
+            font-weight: 700;
+            padding: 14px;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 119, 255, 0.3);
+            margin-bottom: 10px;
+        }
+
+        button:active { transform: scale(0.96); }
+
+        #timer { font-size: 3.5rem; font-weight: 900; color: var(--accent); margin: 10px 0 0 0; font-variant-numeric: tabular-nums; line-height: 1; }
+        #status { font-size: 0.95rem; color: #ffaa00; font-weight: 500; margin-top: 5px; height: 25px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+        th, td { padding: 10px 8px; font-size: 0.9rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); text-align: right; }
+        th { color: var(--accent); font-weight: 700; }
+        td:nth-child(2), th:nth-child(2) { text-align: left; font-variant-numeric: tabular-nums; }
+        .label-sm { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block; text-align: right; }
+    </style>
+</head>
+<body>
+
+    <header class="app-header">
+        <h1>LoopTimer GPS</h1>
+        <a href="index.html" class="back-btn">⬅ טיימר מצלמה</a>
+    </header>
+    
+    <div class="container">
+        <div id="timer">00.000</div>
+        <div id="status">הגדר נקודת זינוק/סיום כדי להתחיל</div>
+
+        <button class="set-point-btn" onclick="setHomePoint()">📍 סמן מיקום נוכחי כקו זינוק/סיום</button>
+        <button class="action-btn" id="startBtn" onclick="toggleSession()" disabled>התחל האזנת GPS</button>
+
+        <div class="card">
+            <label class="label-sm">שם המסלול / סשן:</label>
+            <input type="text" id="trackName" placeholder="למשל: פמפטרק רמת השרון">
+            <label class="label-sm">שם הרוכב:</label>
+            <input type="text" id="riderName" placeholder="למשל: גל">
+        </div>
+
+        <div class="card" style="text-align: right;">
+            <div style="font-weight: 700; margin-bottom: 8px; color: var(--accent);">תוצאות מסלול:</div>
+            <div id="resultsList" style="font-size: 0.85rem; color: var(--text-muted);">אין עדיין תוצאות.</div>
+        </div>
+    </div>
+
+    <script>
+        let homeCoords = null;
+        let isListening = false;
+        let isRacing = false;
+        let startTime = 0;
+        let watchId = null;
+        let timerInterval = null;
+
+        // רדיוס זיהוי במטרים (כמה מטרים נחשב שחזרת לנקודה)
+        const RADIUS_METERS = 6; 
+
+        function setHomePoint() {
+            if (!navigator.geolocation) {
+                alert("המכשיר שלך לא תומך ב-GPS!");
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(position => {
+                homeCoords = {
+                    lat: position.coords.latitude,
+                    lon: position.coords.longitude
+                };
+                document.getElementById('status').innerText = "נקודת זינוק נשמרה בהצלחה!";
+                document.getElementById('startBtn').disabled = false;
+                playBeep(600, 0.1);
+            }, err => {
+                alert("שגיאה בקליטת GPS: וודא שאישור המיקום פתוח.");
+            }, { enableHighAccuracy: true });
+        }
+
+        function toggleSession() {
+            if (!isListening) {
+                if (!homeCoords) {
+                    alert("חובה לסמן נקודת זינוק תחילה!");
+                    return;
+                }
+                startListening();
+            } else {
+                stopListening();
+            }
+        }
+
+        function startListening() {
+            isListening = true;
+            isRacing = false;
+            document.getElementById('startBtn').innerText = "עצור האזנה";
+            document.getElementById('startBtn').style.background = "linear-gradient(135deg, #ff4d4d, #cc0000)";
+            document.getElementById('status').innerText = "ממתין שתתרחק מהנקודה...";
+
+            watchId = navigator.geolocation.watchPosition(checkPosition, err => {}, {
+                enableHighAccuracy: true,
+                maximumAge: 0,
+                timeout: 5000
+            });
+        }
+
+        function stopListening() {
+            isListening = false;
+            isRacing = false;
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+            if (timerInterval) clearInterval(timerInterval);
+            
+            document.getElementById('startBtn').innerText = "התחל האזנת GPS";
+            document.getElementById('startBtn').style.background = "linear-gradient(135deg, #00ffcc, #00b386)";
+            document.getElementById('status').innerText = "האזנה הופסקה.";
+            timerDisplay.innerText = "00.000";
+        }
+
+        function checkPosition(position) {
+            if (!isListening) return;
+
+            let currentCoords = {
+                lat: position.coords.latitude,
+                lon: position.coords.longitude
+            };
+
+            let distance = getDistanceFromLatLonInMeters(
+                homeCoords.lat, homeCoords.lon, 
+                currentCoords.lat, currentCoords.lon
+            );
+
+            let statusEl = document.getElementById('status');
+
+            if (!isRacing) {
+                // שלב ממתין: מחכים שתרחק לפחות 4 מטרים מהנקודה כדי להתחיל את הראן
+                if (distance > 4) {
+                    isRacing = true;
+                    startTime = performance.now();
+                    statusEl.innerText = "רצים! בדרך לסיום...";
+                    playBeep(1000, 0.2);
+
+                    // הפעלת שעון רץ על המסך בזמן אמת
+                    timerInterval = setInterval(() => {
+                        let elapsed = (performance.now() - startTime) / 1000;
+                        document.getElementById('timer').innerText = elapsed.toFixed(3);
+                    }, 50);
+                }
+            } else {
+                // שלב במירוץ: בדקנו שחזרת לנקודה (בתוך הרדיוס)
+                let elapsedTotal = (performance.now() - startTime) / 1000;
+                
+                // הגנה: חייבים לעבור לפחות 3 שניות מרגע היציאה כדי שאי אפשר יהיה ללחוץ סיום בטעות
+                if (distance <= RADIUS_METERS && elapsedTotal >= 3.0) {
+                    // סיום ראן!
+                    isRacing = false;
+                    clearInterval(timerInterval);
+                    playBeep(1500, 0.5);
+
+                    let finalTime = elapsedTotal;
+                    document.getElementById('timer').innerText = finalTime.toFixed(3);
+                    statusEl.innerText = "הושלם סיבוב! מוכן לסיבוב הבא...";
+
+                    saveResult(finalTime);
+
+                    // נעצור לרגע את ההאזנה ונחזיר למצב המתנה אחרי 2 שניות כדי שתוכל לצאת שוב
+                    setTimeout(() => {
+                        if (isListening) {
+                            statusEl.innerText = "ממתין שתתרחק לסיבוב נוסף...";
+                        }
+                    }, 2000);
+                }
+            }
+        }
+
+        // חישוב מרחק מדויק במטרים בין שתי נקודות GPS
+        function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
+            let R = 6371000; // רדיוס כדור הארץ במטרים
+            let dLat = deg2rad(lat2 - lat1);
+            let dLon = deg2rad(lon2 - lon1);
+            let a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+            let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            let distance = R * c; 
+            return distance;
+        }
+
+        function deg2rad(deg) {
+            return deg * (Math.PI/180);
+        }
+
+        function playBeep(freq, duration) {
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.frequency.value = freq;
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch(e) {}
+        }
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function saveResult(time) {
+            let track = document.getElementById('trackName').value || "מסלול כללי";
+            let rider = document.getElementById('riderName').value || "רוכב";
+            
+            let history = JSON.parse(localStorage.getItem('loopTimerHistory') || '[]');
+            history.push({ track: track, rider: rider, time: time, date: Date.now() });
+            localStorage.setItem('loopTimerHistory', JSON.stringify(history));
+            loadResults();
+        }
+
+        function loadResults() {
+            let history = JSON.parse(localStorage.getItem('loopTimerHistory') || '[]');
+            let container = document.getElementById('resultsList');
+            if (history.length === 0) {
+                container.innerHTML = "אין עדיין תוצאות שמורות.";
+                return;
+            }
+            history.sort((a, b) => a.time - b.time);
+            let html = "<table><tr><th>רוכב</th><th>זמן</th></tr>";
+            history.forEach(item => {
+                html += `<tr><td><b>${item.rider}</b><br><span style="font-size:0.75rem; color:var(--text-muted);">${item.track}</span></td><td style="color:var(--accent); font-weight:bold;">${item.time.toFixed(3)}</td></tr>`;
+            });
+            html += "</table>";
+            container.innerHTML = html;
+        }
+
+        window.addEventListener('DOMContentLoaded', loadResults);
+    </script>
+</body>
+</html>
