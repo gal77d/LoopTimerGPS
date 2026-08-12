@@ -122,6 +122,7 @@
 
         #timer { font-size: 3.5rem; font-weight: 900; color: var(--accent); margin: 10px 0 0 0; font-variant-numeric: tabular-nums; line-height: 1; }
         #status { font-size: 0.95rem; color: #ffaa00; font-weight: 500; margin-top: 5px; height: 25px; }
+        #distanceInfo { font-size: 0.85rem; color: var(--text-muted); margin-top: 2px; }
 
         table { width: 100%; border-collapse: collapse; margin-top: 5px; }
         th, td { padding: 10px 8px; font-size: 0.9rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); text-align: right; }
@@ -134,19 +135,20 @@
 
     <header class="app-header">
         <h1>LoopTimer GPS</h1>
-        <a href="index.html" class="back-btn">⬅ טיימר מצלמה</a>
+        <a href="index.html" class="back-btn" style="display:none;"></a>
     </header>
     
     <div class="container">
         <div id="timer">00.000</div>
         <div id="status">הגדר נקודת זינוק/סיום כדי להתחיל</div>
+        <div id="distanceInfo">מרחק מהנקודה: --</div>
 
         <button class="set-point-btn" onclick="setHomePoint()">📍 סמן מיקום נוכחי כקו זינוק/סיום</button>
         <button class="action-btn" id="startBtn" onclick="toggleSession()" disabled>התחל האזנת GPS</button>
 
         <div class="card">
             <label class="label-sm">שם המסלול / סשן:</label>
-            <input type="text" id="trackName" placeholder="למשל: פמפטרק רמת השרון">
+            <input type="text" id="trackName" placeholder="למשל: פמפטרק">
             <label class="label-sm">שם הרוכב:</label>
             <input type="text" id="riderName" placeholder="למשל: גל">
         </div>
@@ -165,8 +167,8 @@
         let watchId = null;
         let timerInterval = null;
 
-        // רדיוס זיהוי במטרים (כמה מטרים נחשב שחזרת לנקודה)
-        const RADIUS_METERS = 6; 
+        // רדיוס זיהוי למעבר בחזרה (במטרים)
+        const RADIUS_METERS = 5; 
 
         function setHomePoint() {
             if (!navigator.geolocation) {
@@ -180,10 +182,11 @@
                     lon: position.coords.longitude
                 };
                 document.getElementById('status').innerText = "נקודת זינוק נשמרה בהצלחה!";
+                document.getElementById('distanceInfo').innerText = "מרחק מהנקודה: 0 מטר";
                 document.getElementById('startBtn').disabled = false;
                 playBeep(600, 0.1);
             }, err => {
-                alert("שגיאה בקליטת GPS: וודא שאישור המיקום פתוח.");
+                alert("שגיאה בקליטת GPS: וודא שאישור המיקום פתוח בדפדפן.");
             }, { enableHighAccuracy: true });
         }
 
@@ -222,6 +225,7 @@
             document.getElementById('startBtn').innerText = "התחל האזנת GPS";
             document.getElementById('startBtn').style.background = "linear-gradient(135deg, #00ffcc, #00b386)";
             document.getElementById('status').innerText = "האזנה הופסקה.";
+            document.getElementById('distanceInfo').innerText = "מרחק מהנקודה: --";
             timerDisplay.innerText = "00.000";
         }
 
@@ -238,29 +242,29 @@
                 currentCoords.lat, currentCoords.lon
             );
 
+            // הצגת המרחק בזמן אמת על המסך
+            document.getElementById('distanceInfo').innerText = `מרחק מהנקודה: ${distance.toFixed(1)} מטר`;
+
             let statusEl = document.getElementById('status');
 
             if (!isRacing) {
-                // שלב ממתין: מחכים שתרחק לפחות 4 מטרים מהנקודה כדי להתחיל את הראן
-                if (distance > 4) {
+                // הורדנו ל-2 מטרים כדי שיהיה קל להתחיל
+                if (distance > 2.5) {
                     isRacing = true;
                     startTime = performance.now();
                     statusEl.innerText = "רצים! בדרך לסיום...";
                     playBeep(1000, 0.2);
 
-                    // הפעלת שעון רץ על המסך בזמן אמת
                     timerInterval = setInterval(() => {
                         let elapsed = (performance.now() - startTime) / 1000;
                         document.getElementById('timer').innerText = elapsed.toFixed(3);
                     }, 50);
                 }
             } else {
-                // שלב במירוץ: בדקנו שחזרת לנקודה (בתוך הרדיוס)
                 let elapsedTotal = (performance.now() - startTime) / 1000;
                 
-                // הגנה: חייבים לעבור לפחות 3 שניות מרגע היציאה כדי שאי אפשר יהיה ללחוץ סיום בטעות
+                // הגנה: חייבים לעבור לפחות 3 שניות מרגע היציאה
                 if (distance <= RADIUS_METERS && elapsedTotal >= 3.0) {
-                    // סיום ראן!
                     isRacing = false;
                     clearInterval(timerInterval);
                     playBeep(1500, 0.5);
@@ -271,7 +275,6 @@
 
                     saveResult(finalTime);
 
-                    // נעצור לרגע את ההאזנה ונחזיר למצב המתנה אחרי 2 שניות כדי שתוכל לצאת שוב
                     setTimeout(() => {
                         if (isListening) {
                             statusEl.innerText = "ממתין שתתרחק לסיבוב נוסף...";
@@ -281,9 +284,8 @@
             }
         }
 
-        // חישוב מרחק מדויק במטרים בין שתי נקודות GPS
         function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
-            let R = 6371000; // רדיוס כדור הארץ במטרים
+            let R = 6371000; 
             let dLat = deg2rad(lat2 - lat1);
             let dLon = deg2rad(lon2 - lon1);
             let a = 
@@ -319,6 +321,7 @@
             
             let history = JSON.parse(localStorage.getItem('loopTimerHistory') || '[]');
             history.push({ track: track, rider: rider, time: time, date: Date.now() });
+            localStorage.getItem('loopTimerHistory', JSON.stringify(history)); // fix storage
             localStorage.setItem('loopTimerHistory', JSON.stringify(history));
             loadResults();
         }
