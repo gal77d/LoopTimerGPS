@@ -150,7 +150,7 @@
                     <span>🏁 סמן קו זינוק</span>
                     <span id="txtStart" style="font-size: 0.8rem; color: var(--text-muted);">לא הוגדר</span>
                 </button>
-                <button class="point-btn" id="btnEnd" onclick="setPoint('end')">
+                <button class="point-btn" id="btnEnd" onclick="setPoint('end')" style="display:none;">
                     <span>🛑 סמן קו סיום</span>
                     <span id="txtEnd" style="font-size: 0.8rem; color: var(--text-muted);">לא הוגדר</span>
                 </button>
@@ -179,7 +179,7 @@
         let watchId = null;
         let timerInterval = null;
 
-        const RADIUS_METERS = 5; // רדיוס זיהוי קו (5 מטרים)
+        const RADIUS_METERS = 6; // רדיוס זיהוי
 
         function changeMode() {
             let mode = document.getElementById('modeSelect').value;
@@ -199,6 +199,8 @@
                 return;
             }
 
+            document.getElementById('status').innerText = "קולט מיקום GPS מדויק...";
+
             navigator.geolocation.getCurrentPosition(position => {
                 let coords = {
                     lat: position.coords.latitude,
@@ -207,24 +209,24 @@
 
                 if (type === 'start') {
                     startCoords = coords;
-                    document.getElementById('txtStart').innerText = "✓ הוגדר בהצלחה";
+                    document.getElementById('txtStart').innerText = "✓ הוגדר";
                     document.getElementById('btnStart').classList.add('set');
                     let mode = document.getElementById('modeSelect').value;
                     if (mode === 'loop') {
                         endCoords = coords;
-                        document.getElementById('txtEnd').innerText = "✓ (זהה לזינוק)";
+                        document.getElementById('txtEnd').innerText = "✓ (זהה)";
                     }
                 } else {
                     endCoords = coords;
-                    document.getElementById('txtEnd').innerText = "✓ הוגדר בהצלחה";
+                    document.getElementById('txtEnd').innerText = "✓ הוגדר";
                     document.getElementById('btnEnd').classList.add('set');
                 }
 
                 playBeep(600, 0.1);
                 validateReady();
             }, err => {
-                alert("שגיאה בקליטת GPS. וודא שאישור המיקום פתוח.");
-            }, { enableHighAccuracy: true });
+                alert("שגיאה בקליטת GPS: וודא שנתוני מיקום פתוחים.");
+            }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
         }
 
         function validateReady() {
@@ -249,12 +251,13 @@
             isRacing = false;
             document.getElementById('startBtn').innerText = "עצור האזנה";
             document.getElementById('startBtn').style.background = "linear-gradient(135deg, #ff4d4d, #cc0000)";
-            document.getElementById('status').innerText = "ממתין שתעבור בקו הזינוק...";
+            document.getElementById('status').innerText = "ממתין שתתרחק מהנקודה...";
 
+            // מעקב רציף ואגרסיבי בלי שמירת מטמון כדי לתפוס תזוזה מהירה
             watchId = navigator.geolocation.watchPosition(checkPosition, err => {}, {
                 enableHighAccuracy: true,
                 maximumAge: 0,
-                timeout: 5000
+                timeout: 3000
             });
         }
 
@@ -278,12 +281,11 @@
             let mode = document.getElementById('modeSelect').value;
 
             if (!isRacing) {
-                // שלב ממתין לזינוק: בודקים מרחק מקו הזינוק
                 let distToStart = getDistance(startCoords.lat, startCoords.lon, current.lat, current.lon);
-                document.getElementById('infoBox').innerText = `מרחק מקו הזינוק: ${distToStart.toFixed(1)} מ'`;
+                document.getElementById('infoBox').innerText = `מרחק מהזינוק: ${distToStart.toFixed(1)} מטרים`;
 
-                // אם הרוכב חצה את קו הזינוק (נכנס לרדיוס)
-                if (distToStart <= RADIUS_METERS) {
+                // שלב 1: צריך שתרחק לפחות 3 מטרים מהנקודה כדי לדעת שיצאת לדרך
+                if (distToStart > 3.0) {
                     isRacing = true;
                     startTime = performance.now();
                     document.getElementById('status').innerText = "⚡ זינוק! הטיימר פועל...";
@@ -295,16 +297,14 @@
                     }, 50);
                 }
             } else {
-                // שלב במירוץ: מחכים לקו סיום
                 let targetCoords = (mode === 'loop') ? startCoords : endCoords;
                 let distToEnd = getDistance(targetCoords.lat, targetCoords.lon, current.lat, current.lon);
                 let elapsedTotal = (performance.now() - startTime) / 1000;
 
-                document.getElementById('infoBox').innerText = `מרחק מקו סיום: ${distToEnd.toFixed(1)} מ' (זמן: ${elapsedTotal.toFixed(1)}ש)`;
+                document.getElementById('infoBox').innerText = `מרחק מהסיום: ${distToEnd.toFixed(1)} מ' (זמן: ${elapsedTotal.toFixed(1)}ש)`;
 
-                // הגנה למסלולים קטנים: חובה שיעברו לפחות 3 שניות לפני שאפשר לעצור
+                // שלב 2: כשחזרת לנקודה (בתוך הרדיוס) ועברו לפחות 3 שניות
                 if (distToEnd <= RADIUS_METERS && elapsedTotal >= 3.0) {
-                    // הגעה לקו סיום!
                     isRacing = false;
                     clearInterval(timerInterval);
                     playBeep(1500, 0.5);
@@ -315,15 +315,13 @@
 
                     saveResult(finalTime);
 
-                    // במצב מעגלי, ברגע שנעצרנו על נקודת הסיום שהיא גם זינוק, נשארים במצב מוכן לסיבוב הבא
                     if (mode === 'loop') {
                         setTimeout(() => {
                             if (isListening) {
-                                document.getElementById('status').innerText = "מוכן לסיבוב הבא - עבור בקו!";
+                                document.getElementById('status').innerText = "מוכן לסיבוב הבא - צא לדרך!";
                             }
                         }, 2000);
                     } else {
-                        // במסלול פתוח נעצור את ההאזנה או נחזיר להמתנה לזינוק חדש
                         stopListening();
                     }
                 }
