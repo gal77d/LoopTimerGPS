@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>LoopTimer GPS</title>
+    <title>LoopTimer GPS Pro</title>
     <style>
         :root {
             --bg-main: #0b0d10;
@@ -46,16 +46,6 @@
 
         .app-header h1 { font-size: 1.2rem; margin: 0; color: var(--accent); font-weight: 800; }
         
-        .back-btn {
-            background: #232833;
-            color: var(--text-main);
-            text-decoration: none;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-
         .container {
             width: 100%;
             max-width: 400px;
@@ -72,9 +62,10 @@
             border-radius: 16px;
             padding: 16px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            text-align: right;
         }
 
-        input[type="text"] {
+        input[type="text"], select {
             width: 100%;
             padding: 12px;
             border-radius: 10px;
@@ -88,7 +79,7 @@
             margin-bottom: 10px;
             text-align: right;
         }
-        input[type="text"]:focus { border-color: var(--accent); }
+        input[type="text"]:focus, select:focus { border-color: var(--accent); }
 
         button.action-btn {
             width: 100%;
@@ -104,25 +95,28 @@
             margin-bottom: 10px;
         }
 
-        button.set-point-btn {
+        button.point-btn {
             width: 100%;
-            background: linear-gradient(135deg, #0077ff, #0055bb);
-            color: white;
-            font-size: 1rem;
+            background: #232833;
+            color: var(--accent);
+            border: 1px solid rgba(0, 255, 204, 0.2);
+            font-size: 0.95rem;
             font-weight: 700;
-            padding: 14px;
-            border: none;
-            border-radius: 14px;
+            padding: 12px;
+            border-radius: 12px;
             cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0, 119, 255, 0.3);
-            margin-bottom: 10px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
+        button.point-btn.set { background: rgba(0, 255, 204, 0.1); border-color: var(--accent); }
 
         button:active { transform: scale(0.96); }
 
         #timer { font-size: 3.5rem; font-weight: 900; color: var(--accent); margin: 10px 0 0 0; font-variant-numeric: tabular-nums; line-height: 1; }
         #status { font-size: 0.95rem; color: #ffaa00; font-weight: 500; margin-top: 5px; height: 25px; }
-        #distanceInfo { font-size: 0.85rem; color: var(--text-muted); margin-top: 2px; }
+        #infoBox { font-size: 0.85rem; color: var(--text-muted); margin-top: 2px; }
 
         table { width: 100%; border-collapse: collapse; margin-top: 5px; }
         th, td { padding: 10px 8px; font-size: 0.9rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); text-align: right; }
@@ -134,68 +128,116 @@
 <body>
 
     <header class="app-header">
-        <h1>LoopTimer GPS</h1>
-        <a href="index.html" class="back-btn" style="display:none;"></a>
+        <h1>LoopTimer GPS Pro</h1>
     </header>
     
     <div class="container">
         <div id="timer">00.000</div>
-        <div id="status">הגדר נקודת זינוק/סיום כדי להתחיל</div>
-        <div id="distanceInfo">מרחק מהנקודה: --</div>
+        <div id="status">הגדר נקודות ובחר מצב</div>
+        <div id="infoBox">ממתין להפעלת GPS...</div>
 
-        <button class="set-point-btn" onclick="setHomePoint()">📍 סמן מיקום נוכחי כקו זינוק/סיום</button>
         <button class="action-btn" id="startBtn" onclick="toggleSession()" disabled>התחל האזנת GPS</button>
 
         <div class="card">
+            <label class="label-sm">סוג מסלול:</label>
+            <select id="modeSelect" onchange="changeMode()">
+                <option value="loop">מסלול מעגלי (אותה נקודה לזינוק וסיום)</option>
+                <option value="point_to_point">מסלול פתוח (נקודות זינוק וסיום נפרדות)</option>
+            </select>
+
+            <div id="pointsContainer" style="margin-top: 10px;">
+                <button class="point-btn" id="btnStart" onclick="setPoint('start')">
+                    <span>🏁 סמן קו זינוק</span>
+                    <span id="txtStart" style="font-size: 0.8rem; color: var(--text-muted);">לא הוגדר</span>
+                </button>
+                <button class="point-btn" id="btnEnd" onclick="setPoint('end')">
+                    <span>🛑 סמן קו סיום</span>
+                    <span id="txtEnd" style="font-size: 0.8rem; color: var(--text-muted);">לא הוגדר</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="card">
             <label class="label-sm">שם המסלול / סשן:</label>
-            <input type="text" id="trackName" placeholder="למשל: פמפטרק">
+            <input type="text" id="trackName" placeholder="למשל: יער / פמפטרק">
             <label class="label-sm">שם הרוכב:</label>
             <input type="text" id="riderName" placeholder="למשל: גל">
         </div>
 
-        <div class="card" style="text-align: right;">
+        <div class="card">
             <div style="font-weight: 700; margin-bottom: 8px; color: var(--accent);">תוצאות מסלול:</div>
             <div id="resultsList" style="font-size: 0.85rem; color: var(--text-muted);">אין עדיין תוצאות.</div>
         </div>
     </div>
 
     <script>
-        let homeCoords = null;
+        let startCoords = null;
+        let endCoords = null;
         let isListening = false;
         let isRacing = false;
         let startTime = 0;
         let watchId = null;
         let timerInterval = null;
 
-        // רדיוס זיהוי למעבר בחזרה (במטרים)
-        const RADIUS_METERS = 5; 
+        const RADIUS_METERS = 5; // רדיוס זיהוי קו (5 מטרים)
 
-        function setHomePoint() {
+        function changeMode() {
+            let mode = document.getElementById('modeSelect').value;
+            let btnEnd = document.getElementById('btnEnd');
+            if (mode === 'loop') {
+                btnEnd.style.display = 'none';
+                endCoords = startCoords;
+            } else {
+                btnEnd.style.display = 'flex';
+            }
+            validateReady();
+        }
+
+        function setPoint(type) {
             if (!navigator.geolocation) {
-                alert("המכשיר שלך לא תומך ב-GPS!");
+                alert("המכשיר לא תומך ב-GPS!");
                 return;
             }
 
             navigator.geolocation.getCurrentPosition(position => {
-                homeCoords = {
+                let coords = {
                     lat: position.coords.latitude,
                     lon: position.coords.longitude
                 };
-                document.getElementById('status').innerText = "נקודת זינוק נשמרה בהצלחה!";
-                document.getElementById('distanceInfo').innerText = "מרחק מהנקודה: 0 מטר";
-                document.getElementById('startBtn').disabled = false;
+
+                if (type === 'start') {
+                    startCoords = coords;
+                    document.getElementById('txtStart').innerText = "✓ הוגדר בהצלחה";
+                    document.getElementById('btnStart').classList.add('set');
+                    let mode = document.getElementById('modeSelect').value;
+                    if (mode === 'loop') {
+                        endCoords = coords;
+                        document.getElementById('txtEnd').innerText = "✓ (זהה לזינוק)";
+                    }
+                } else {
+                    endCoords = coords;
+                    document.getElementById('txtEnd').innerText = "✓ הוגדר בהצלחה";
+                    document.getElementById('btnEnd').classList.add('set');
+                }
+
                 playBeep(600, 0.1);
+                validateReady();
             }, err => {
-                alert("שגיאה בקליטת GPS: וודא שאישור המיקום פתוח בדפדפן.");
+                alert("שגיאה בקליטת GPS. וודא שאישור המיקום פתוח.");
             }, { enableHighAccuracy: true });
+        }
+
+        function validateReady() {
+            let mode = document.getElementById('modeSelect').value;
+            let ready = (mode === 'loop' && startCoords !== null) || (mode === 'point_to_point' && startCoords !== null && endCoords !== null);
+            document.getElementById('startBtn').disabled = !ready;
+            if (ready) {
+                document.getElementById('status').innerText = "הכל מוכן! לחץ להתחלת האזנה";
+            }
         }
 
         function toggleSession() {
             if (!isListening) {
-                if (!homeCoords) {
-                    alert("חובה לסמן נקודת זינוק תחילה!");
-                    return;
-                }
                 startListening();
             } else {
                 stopListening();
@@ -207,7 +249,7 @@
             isRacing = false;
             document.getElementById('startBtn').innerText = "עצור האזנה";
             document.getElementById('startBtn').style.background = "linear-gradient(135deg, #ff4d4d, #cc0000)";
-            document.getElementById('status').innerText = "ממתין שתתרחק מהנקודה...";
+            document.getElementById('status').innerText = "ממתין שתעבור בקו הזינוק...";
 
             watchId = navigator.geolocation.watchPosition(checkPosition, err => {}, {
                 enableHighAccuracy: true,
@@ -225,34 +267,26 @@
             document.getElementById('startBtn').innerText = "התחל האזנת GPS";
             document.getElementById('startBtn').style.background = "linear-gradient(135deg, #00ffcc, #00b386)";
             document.getElementById('status').innerText = "האזנה הופסקה.";
-            document.getElementById('distanceInfo').innerText = "מרחק מהנקודה: --";
-            timerDisplay.innerText = "00.000";
+            document.getElementById('infoBox').innerText = "";
+            document.getElementById('timer').innerText = "00.000";
         }
 
         function checkPosition(position) {
             if (!isListening) return;
 
-            let currentCoords = {
-                lat: position.coords.latitude,
-                lon: position.coords.longitude
-            };
-
-            let distance = getDistanceFromLatLonInMeters(
-                homeCoords.lat, homeCoords.lon, 
-                currentCoords.lat, currentCoords.lon
-            );
-
-            // הצגת המרחק בזמן אמת על המסך
-            document.getElementById('distanceInfo').innerText = `מרחק מהנקודה: ${distance.toFixed(1)} מטר`;
-
-            let statusEl = document.getElementById('status');
+            let current = { lat: position.coords.latitude, lon: position.coords.longitude };
+            let mode = document.getElementById('modeSelect').value;
 
             if (!isRacing) {
-                // הורדנו ל-2 מטרים כדי שיהיה קל להתחיל
-                if (distance > 2.5) {
+                // שלב ממתין לזינוק: בודקים מרחק מקו הזינוק
+                let distToStart = getDistance(startCoords.lat, startCoords.lon, current.lat, current.lon);
+                document.getElementById('infoBox').innerText = `מרחק מקו הזינוק: ${distToStart.toFixed(1)} מ'`;
+
+                // אם הרוכב חצה את קו הזינוק (נכנס לרדיוס)
+                if (distToStart <= RADIUS_METERS) {
                     isRacing = true;
                     startTime = performance.now();
-                    statusEl.innerText = "רצים! בדרך לסיום...";
+                    document.getElementById('status').innerText = "⚡ זינוק! הטיימר פועל...";
                     playBeep(1000, 0.2);
 
                     timerInterval = setInterval(() => {
@@ -261,48 +295,55 @@
                     }, 50);
                 }
             } else {
+                // שלב במירוץ: מחכים לקו סיום
+                let targetCoords = (mode === 'loop') ? startCoords : endCoords;
+                let distToEnd = getDistance(targetCoords.lat, targetCoords.lon, current.lat, current.lon);
                 let elapsedTotal = (performance.now() - startTime) / 1000;
-                
-                // הגנה: חייבים לעבור לפחות 3 שניות מרגע היציאה
-                if (distance <= RADIUS_METERS && elapsedTotal >= 3.0) {
+
+                document.getElementById('infoBox').innerText = `מרחק מקו סיום: ${distToEnd.toFixed(1)} מ' (זמן: ${elapsedTotal.toFixed(1)}ש)`;
+
+                // הגנה למסלולים קטנים: חובה שיעברו לפחות 3 שניות לפני שאפשר לעצור
+                if (distToEnd <= RADIUS_METERS && elapsedTotal >= 3.0) {
+                    // הגעה לקו סיום!
                     isRacing = false;
                     clearInterval(timerInterval);
                     playBeep(1500, 0.5);
 
                     let finalTime = elapsedTotal;
                     document.getElementById('timer').innerText = finalTime.toFixed(3);
-                    statusEl.innerText = "הושלם סיבוב! מוכן לסיבוב הבא...";
+                    document.getElementById('status').innerText = "🏆 סיום ראן! נשמר בהצלחה.";
 
                     saveResult(finalTime);
 
-                    setTimeout(() => {
-                        if (isListening) {
-                            statusEl.innerText = "ממתין שתתרחק לסיבוב נוסף...";
-                        }
-                    }, 2000);
+                    // במצב מעגלי, ברגע שנעצרנו על נקודת הסיום שהיא גם זינוק, נשארים במצב מוכן לסיבוב הבא
+                    if (mode === 'loop') {
+                        setTimeout(() => {
+                            if (isListening) {
+                                document.getElementById('status').innerText = "מוכן לסיבוב הבא - עבור בקו!";
+                            }
+                        }, 2000);
+                    } else {
+                        // במסלול פתוח נעצור את ההאזנה או נחזיר להמתנה לזינוק חדש
+                        stopListening();
+                    }
                 }
             }
         }
 
-        function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
-            let R = 6371000; 
-            let dLat = deg2rad(lat2 - lat1);
-            let dLon = deg2rad(lon2 - lon1);
-            let a = 
-                Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-            let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-            let distance = R * c; 
-            return distance;
-        }
-
-        function deg2rad(deg) {
-            return deg * (Math.PI/180);
+        function getDistance(lat1, lon1, lat2, lon2) {
+            let R = 6371000;
+            let dLat = (lat2 - lat1) * Math.PI / 180;
+            let dLon = (lon2 - lon1) * Math.PI / 180;
+            let a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+            let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
         }
 
         function playBeep(freq, duration) {
             try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.frequency.value = freq;
@@ -313,15 +354,12 @@
             } catch(e) {}
         }
 
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
         function saveResult(time) {
-            let track = document.getElementById('trackName').value || "מסלול כללי";
+            let track = document.getElementById('trackName').value || "מסלול GPS";
             let rider = document.getElementById('riderName').value || "רוכב";
             
             let history = JSON.parse(localStorage.getItem('loopTimerHistory') || '[]');
             history.push({ track: track, rider: rider, time: time, date: Date.now() });
-            localStorage.getItem('loopTimerHistory', JSON.stringify(history)); // fix storage
             localStorage.setItem('loopTimerHistory', JSON.stringify(history));
             loadResults();
         }
